@@ -49,52 +49,6 @@ class InstallationsController extends BcAdminAppController
     {
         parent::beforeFilter($event);
         set_time_limit(300);
-        if(!BcUtil::isInstallMode()) $this->notFound();
-        // TODO ucmitz 以下、未実装
-//        /* インストール状態判別 */
-//        if (file_exists(APP . 'Config' . DS . 'database.php')) {
-//            ConnectionManager::sourceList();
-//            $db = ConnectionManager::$config;
-//            if ($db->default['datasource'] != '') {
-//                $installed = 'complete';
-//            } else {
-//                $installed = 'half';
-//            }
-//        } else {
-//            $installed = 'yet';
-//        }
-//
-//        switch($this->request->action) {
-//            case 'alert':
-//                break;
-//            case 'reset':
-//                if (Configure::read('debug') != -1) {
-//                    $this->notFound();
-//                }
-//                break;
-//            default:
-//                if ($installed === 'complete') {
-//                    if ($this->request->action !== 'step5') {
-//                        $this->notFound();
-//                    }
-//                } else {
-//                    $installationData = Cache::read('Installation', 'default');
-//                    if (empty($installationData['lastStep'])) {
-//                        if (Configure::read('debug') == 0) {
-//                            $this->redirect(['action' => 'alert']);
-//                            return;
-//                        }
-//                    }
-//                }
-//                break;
-//        }
-
-        /*if (strpos($this->request->webroot, 'webroot') === false) {
-            $this->request->webroot = DS;
-        }*/
-
-//        $this->Security->csrfCheck = false;
-//        $this->Security->validatePost = false;
     }
 
     /**
@@ -146,7 +100,7 @@ class InstallationsController extends BcAdminAppController
                 case 'checkDb':
                     try {
                         $service->testConnectDb($service->readDbSetting($this->getRequest()));
-                        $this->BcMessage->setInfo(__d('baser', 'データベースへの接続に成功しました。'));
+                        $this->BcMessage->setInfo(__d('baser_core', 'データベースへの接続に成功しました。'));
                         $blDBSettingsOK = true;
                     } catch (\PDOException $e) {
                         $this->BcMessage->setError($e->getMessage());
@@ -163,10 +117,10 @@ class InstallationsController extends BcAdminAppController
                             $this->request->getData('dbDataPattern'),
                             Configure::read('BcApp.defaultAdminTheme')
                         );
-                        $this->BcMessage->setInfo(__d('baser', 'データベースの構築に成功しました。'));
+                        $this->BcMessage->setInfo(__d('baser_core', 'データベースの構築に成功しました。'));
                         return $this->redirect(['action' => 'step4']);
                     } catch (BcException $e) {
-                        $errorMessage = __d('baser', 'データベースの構築中にエラーが発生しました。') . "\n" . $e->getMessage();
+                        $errorMessage = __d('baser_core', 'データベースの構築中にエラーが発生しました。') . "\n" . $e->getMessage();
                         $this->BcMessage->setError($errorMessage);
                     }
                     break;
@@ -206,15 +160,15 @@ class InstallationsController extends BcAdminAppController
                 } catch (PersistenceFailedException $e) {
                     $db->rollback();
                     $errMsg = implode("\n・", Hash::extract($e->getEntity()->getErrors(), '{s}.{s}'));
-                    $this->BcMessage->setError(__d('baser', '管理ユーザーを作成できませんでした。') . "\n\n・" . $errMsg);
+                    $this->BcMessage->setError(__d('baser_core', '管理ユーザーを作成できませんでした。') . "\n\n・" . $errMsg);
                 } catch (\Throwable $e) {
                     if($e->getMessage() === 'Could not send email: unknown') {
                         $db->commit();
-                        $this->BcMessage->setWarning(__d('baser', 'インストールは完了しましたが、インストール完了メールが送信できませんでした。サーバーのメール設定を見直してください。'));
+                        $this->BcMessage->setWarning(__d('baser_core', 'インストールは完了しましたが、インストール完了メールが送信できませんでした。サーバーのメール設定を見直してください。'));
                         return $this->redirect(['action' => 'step5']);
                     }
                     $db->rollback();
-                    $this->BcMessage->setError(__d('baser', 'インストール中にエラーが発生しました。') . $e->getMessage());
+                    $this->BcMessage->setError(__d('baser_core', 'インストール中にエラーが発生しました。') . $e->getMessage());
                 }
             }
         }
@@ -249,53 +203,6 @@ class InstallationsController extends BcAdminAppController
             BcUtil::clearAllCache();
             if (function_exists('opcache_reset')) opcache_reset();
         }
-    }
-
-    /**
-     * インストール不能警告メッセージを表示
-     *
-     * @return void
-     */
-    public function alert()
-    {
-        $this->setTitle(__d('baser', 'baserCMSのインストールを開始できません'));
-    }
-
-    /**
-     * baserCMSを初期化する
-     * debug フラグが -1 の場合のみ実行可能
-     *
-     * @return    void
-     * @access    public
-     */
-    public function reset()
-    {
-        $this->setTitle(__d('baser', 'baserCMSの初期化'));
-        $this->layoutPath = 'admin';
-        $this->layout = 'default';
-        $this->subDir = 'admin';
-
-        if (empty($this->request->getData('Installation.reset'))) {
-            $this->set('complete', !BcUtil::isInstalled()? true : false);
-            return;
-        }
-
-        $dbConfig = $this->_readDbSetting();
-        if (!$dbConfig) {
-            $dbConfig = getDbConfig('default');
-        }
-
-        if (!$this->BcManager->reset($dbConfig)) {
-            $this->BcMessage->setError(
-                __d(
-                    'baser',
-                    'baserCMSを初期化しましたが、正常に処理が行われませんでした。詳細については、エラー・ログを確認してださい。'
-                )
-            );
-        } else {
-            $this->BcMessage->setInfo(__d('baser', 'baserCMSを初期化しました。'));
-        }
-        $this->redirect('reset');
     }
 
 }

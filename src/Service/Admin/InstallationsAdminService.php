@@ -83,7 +83,7 @@ class InstallationsAdminService extends InstallationsService implements Installa
             return [
                 'dbType' => 'mysql',
                 'dbHost' => 'localhost',
-                'dbPrefix' => 'mysite_',
+                'dbPrefix' => '',
                 'dbPort' => '3306',
                 'dbName' => 'basercms',
                 'dbDataPattern' => Inflector::camelize(Configure::read('BcApp.defaultFrontTheme'), '-') . '.default'
@@ -321,27 +321,8 @@ class InstallationsAdminService extends InstallationsService implements Installa
      */
     public function initDb(ServerRequest $request): void
     {
-
-        // コアプラグインインストール
-        $dbDataPattern = $request->getSession()->read('Installation.dbDataPattern');
-        $this->installCorePlugin($dbDataPattern);
-
         // データベースのデータを初期設定に更新
         $this->executeDefaultUpdates();
-
-        // テーマの初期データを読み込む
-        // TODO ucmitz テーマの初期データ未実装
-//        [$theme, $pattern] = explode('.', $dbDataPattern);
-//        App::build(['Plugin' => array_merge([BASER_THEMES . Configure::read('BcSite.theme') . DS . 'Plugin' . DS], App::path('Plugin'))]);
-//        $themesPlugins = BcUtil::getCurrentThemesPlugins();
-//        if ($themesPlugins) {
-//            foreach($themesPlugins as $plugin) {
-//                $this->BcManager->installPlugin($plugin);
-//                CakePlugin::load($plugin);
-//                $this->BcManager->resetTables('plugin', $dbConfig = null, $plugin);
-//                $this->BcManager->loadDefaultDataPattern('plugin', null, $pattern, $theme, $plugin);
-//            }
-//        }
 
         // アクセスルールの初期データを構築
         $this->buildPermissions();

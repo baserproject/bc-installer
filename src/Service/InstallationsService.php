@@ -27,6 +27,7 @@ use BaserCore\Service\ThemesServiceInterface;
 use BaserCore\Service\UsersServiceInterface;
 use BaserCore\Utility\BcContainerTrait;
 use BaserCore\Utility\BcUtil;
+use BcSearchIndex\Service\SearchIndexesServiceInterface;
 use Cake\Core\Configure;
 use Cake\Core\Plugin;
 use Cake\Database\Connection;
@@ -162,21 +163,29 @@ class InstallationsService implements InstallationsServiceInterface
             $dbDataPattern = Configure::read('BcApp.defaultFrontTheme') . '.default';
         }
         if (strpos($dbDataPattern, '.') === false) {
-            throw new BcException(__d('baser', 'データパターンの形式が不正です。'));
+            throw new BcException(__d('baser_core', 'データパターンの形式が不正です。'));
         }
         if (!$this->BcDatabase->constructionTable('BaserCore', 'default', $dbConfig)) {
-            throw new BcException(__d('baser', 'コアテーブルの構築に失敗しました。'));
+            throw new BcException(__d('baser_core', 'コアテーブルの構築に失敗しました。'));
         }
-        [$theme, $pattern] = explode('.', $dbDataPattern);
+
         try {
-            if (!$this->BcDatabase->loadDefaultDataPattern($theme, $pattern)) {
-                throw new BcException(__d('baser', 'コアの初期データのロードに失敗しました。'));
-            }
-        } catch (BcException $e) {
-            throw new BcException(__d('baser', 'コアの初期データのロードに失敗しました。' . $e->getMessage()));
+            $this->installCorePlugin();
+        } catch (\Throwable $e) {
+            throw new BcException(__d('baser_core', 'コアプラグインのインストールに失敗しました。'));
         }
+
+        try {
+            [$theme, $pattern] = explode('.', $dbDataPattern);
+            if (!$this->BcDatabase->loadDefaultDataPattern($theme, $pattern)) {
+                throw new BcException(__d('baser_core', 'コアの初期データのロードに失敗しました。'));
+            }
+        } catch (\Throwable $e) {
+            throw new BcException(__d('baser_core', 'コアの初期データのロードに失敗しました。' . $e->getMessage()));
+        }
+
         if (!$this->BcDatabase->initSystemData(['theme' => $theme, 'adminTheme' => $adminTheme])) {
-            throw new BcException(__d('baser', 'システムデータの初期化に失敗しました。'));
+            throw new BcException(__d('baser_core', 'システムデータの初期化に失敗しました。'));
         }
         $datasource = strtolower(str_replace('Cake\\Database\\Driver\\', '', $dbConfig['driver']));
         if ($datasource === 'postgres') {
@@ -222,7 +231,7 @@ class InstallationsService implements InstallationsServiceInterface
             $this->BcDatabase->testConnectDb($config);
         } catch (PDOException $e) {
             throw $e;
-        } catch (BcException $e) {
+        } catch (\Throwable $e) {
             throw $e;
         }
     }
@@ -323,13 +332,16 @@ class InstallationsService implements InstallationsServiceInterface
     {
         $result = true;
         if (!$this->_updatePluginStatus()) {
-            $this->log(__d('baser', 'プラグインの有効化に失敗しました。'));
+            $this->log(__d('baser_core', 'プラグインの有効化に失敗しました。'));
             $result = false;
         }
         if (!$this->_updateContents()) {
-            $this->log(__d('baser', 'コンテンツの更新に失敗しました。'));
+            $this->log(__d('baser_core', 'コンテンツの更新に失敗しました。'));
             $result = false;
         }
+        /** @var SearchIndexesServiceInterface $searchIndexesService */
+        $searchIndexesService = $this->getService(SearchIndexesServiceInterface::class);
+        $searchIndexesService->reconstruct();
         return $result;
     }
 
@@ -393,13 +405,19 @@ class InstallationsService implements InstallationsServiceInterface
      * @checked
      * @noTodo
      */
-    public function installCorePlugin(string $dbDataPattern): bool
+    public function installCorePlugin(): bool
     {
         $result = true;
         $corePlugins = Configure::read('BcApp.defaultInstallCorePlugins');
+
+        // BcSearchIndex についてインストール時に検索インデックスの構築を行うため、最後に移動
+        $key = array_search('BcSearchIndex', $corePlugins);
+        unset($corePlugins[$key]);
+        $corePlugins[] = 'BcSearchIndex';
+
         foreach($corePlugins as $corePlugin) {
-            if (!$this->installPlugin($corePlugin, $dbDataPattern)) {
-                $this->log(sprintf(__d('baser', 'コアプラグイン %s のインストールに失敗しました。'), $corePlugin));
+            if (!$this->installPlugin($corePlugin)) {
+                $this->log(sprintf(__d('baser_core', 'コアプラグイン %s のインストールに失敗しました。'), $corePlugin));
                 $result = false;
             }
         }
@@ -414,89 +432,13 @@ class InstallationsService implements InstallationsServiceInterface
      * @return boolean
      * @checked
      */
-    public function installPlugin($name, $dbDataPattern = '')
+    public function installPlugin($name)
     {
         BcUtil::clearAllCache();
-        // TODO ucmitz 引数となる $dbDataPattern が利用できる仕様となっていない
         /* @var BcPlugin $plugin */
         $plugin = Plugin::isLoaded($name);
         if(!$plugin) $plugin = Plugin::getCollection()->create($name);
-
-        // InstallationsService::buildPermissions() で別途アクセスルールを一括で作成するため
-        // ここでは、アクセスルールは作らない（permission オプションを利用しない）
         return $plugin->install();
-
-        $paths = App::path('Plugin');
-        $exists = false;
-        foreach($paths as $path) {
-            if (file_exists($path . $name)) {
-                $exists = true;
-                break;
-            }
-        }
-
-        if (!$exists) {
-            return false;
-        }
-
-        $this->Plugin = ClassRegistry::init('Plugin');
-        $data = $this->Plugin->find('first', ['conditions' => ['name' => $name]]);
-        $title = '';
-
-        if (empty($data['Plugin']['db_inited'])) {
-            $initPath = $path . $name . DS . 'Config' . DS . 'init.php';
-            if (file_exists($initPath)) {
-                $this->initPlugin($initPath, $dbDataPattern);
-            }
-        }
-        $configPath = $path . $name . DS . 'config.php';
-        if (file_exists($configPath)) {
-            include $configPath;
-        }
-
-        if (empty($title)) {
-            if (!empty($data['Plugin']['title'])) {
-                $title = $data['Plugin']['title'];
-            } else {
-                $title = $name;
-            }
-        }
-
-        if ($data) {
-            // 既にインストールデータが存在する場合は、DBのバージョンは変更しない
-            $data = array_merge($data['Plugin'], [
-                'name' => $name,
-                'title' => $title,
-                'status' => true,
-                'db_inited' => true
-            ]);
-            $this->Plugin->set($data);
-        } else {
-            $corePlugins = Configure::read('BcApp.corePlugins');
-            if (in_array($name, $corePlugins)) {
-                $version = BcUtil::getVersion();
-            } else {
-                $version = BcUtil::getVersion($name);
-            }
-
-            $priority = intval($this->Plugin->getMax('priority')) + 1;
-            $data = ['Plugin' => [
-                'name' => $name,
-                'title' => $title,
-                'status' => true,
-                'db_inited' => true,
-                'version' => $version,
-                'priority' => $priority
-            ]];
-            $this->Plugin->create($data);
-        }
-
-        // データを保存
-        if ($this->Plugin->save()) {
-            return true;
-        } else {
-            return false;
-        }
     }
 
     /**

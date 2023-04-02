@@ -20,6 +20,8 @@ use BcInstaller\Service\Admin\InstallationsAdminService;
 use BcInstaller\Service\Admin\InstallationsAdminServiceInterface;
 use Cake\Core\Configure;
 use Cake\Event\EventInterface;
+use Cake\Http\Cookie\Cookie;
+use Cake\Http\Response;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\Utility\Hash;
 use BaserCore\Annotation\UnitTest;
@@ -61,6 +63,8 @@ class InstallationsController extends BcAdminAppController
     public function index()
     {
         BcUtil::clearAllCache();
+        // クッキーを削除。インストール中のCSRF エラーの発生防止
+        $this->setResponse($this->getResponse()->withExpiredCookie(new Cookie('csrfToken')));
     }
 
     /**
@@ -82,7 +86,7 @@ class InstallationsController extends BcAdminAppController
     /**
      * Step 3: データベースの接続設定
      *
-     * @return void
+     * @return void|Response
      * @noTodo
      * @checked
      */
@@ -119,7 +123,7 @@ class InstallationsController extends BcAdminAppController
                         );
                         $this->BcMessage->setInfo(__d('baser_core', 'データベースの構築に成功しました。'));
                         return $this->redirect(['action' => 'step4']);
-                    } catch (BcException $e) {
+                    } catch (\Throwable $e) {
                         $errorMessage = __d('baser_core', 'データベースの構築中にエラーが発生しました。') . "\n" . $e->getMessage();
                         $this->BcMessage->setError($errorMessage);
                     }
@@ -162,7 +166,7 @@ class InstallationsController extends BcAdminAppController
                     $errMsg = implode("\n・", Hash::extract($e->getEntity()->getErrors(), '{s}.{s}'));
                     $this->BcMessage->setError(__d('baser_core', '管理ユーザーを作成できませんでした。') . "\n\n・" . $errMsg);
                 } catch (\Throwable $e) {
-                    if($e->getMessage() === 'Could not send email: unknown') {
+                    if(strpos($e->getMessage(), 'Could not send email:') !== false) {
                         $db->commit();
                         $this->BcMessage->setWarning(__d('baser_core', 'インストールは完了しましたが、インストール完了メールが送信できませんでした。サーバーのメール設定を見直してください。'));
                         return $this->redirect(['action' => 'step5']);

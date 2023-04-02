@@ -78,8 +78,10 @@ function command($phpPath)
     if ($code !== 0) throw new Exception('composer のアップデートに失敗しました。');
     $command = "cd " . ROOT_DIR . "; export HOME={$composerDir} ; {$phpPath} {$composerDir}composer.phar install";
     exec($command, $out, $code);
-    if ($code !== 0) throw new Exception('ライブラリのインストールに失敗しました。');
-    copy(ROOT_DIR . 'config' . DS . '.env.example', ROOT_DIR . 'config' . DS . '.env');
+    if ($code !== 0) throw new Exception('ライブラリのインストールに失敗しました。<br>コマンド実行をお試しください<br>' . $command);
+    if (!copy(ROOT_DIR . 'config' . DS . '.env.example', ROOT_DIR . 'config' . DS . '.env')) {
+        throw new Exception('.env のコピーに失敗しました。<br>/config/.env.example を /config/.env としてリネームしてください。');
+    }
 }
 
 ?>

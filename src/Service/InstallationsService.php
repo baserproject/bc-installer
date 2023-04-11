@@ -96,7 +96,7 @@ class InstallationsService implements InstallationsServiceInterface
         $status = [
             'encoding' => mb_internal_encoding(),
             'phpVersion' => phpversion(),
-            'phpMemory' => intval(ini_get('memory_limit')),
+            'phpMemory' => $this->_getMemoryLimit(),
             'safeModeOff' => !ini_get('safe_mode'),
             'configDirWritable' => is_writable($info['configDir']),
             'pluginDirWritable' => is_writable($info['pluginDir']),
@@ -150,6 +150,20 @@ class InstallationsService implements InstallationsServiceInterface
         return $info + $status + $check;
     }
 
+	/**
+	 * memory_limit を取得する
+	 * @return int
+	 */
+	protected function _getMemoryLimit ()
+	{
+		$size = ini_get('memory_limit');
+		switch (substr ($size, -1)) {
+			case 'M': case 'm': return (int) $size;
+			case 'G': case 'g': return (int) $size * 1024;
+			default: return (int) $size;
+		}
+	}
+
     /**
      * baserCMSコアのデータベースを構築する
      *
@@ -163,7 +177,7 @@ class InstallationsService implements InstallationsServiceInterface
     public function constructionDb(array $dbConfig, string $dbDataPattern = '', string $adminTheme = ''): bool
     {
         if (!$dbDataPattern) {
-            $dbDataPattern = Configure::read('BcApp.defaultFrontTheme') . '.default';
+            $dbDataPattern = Configure::read('BcApp.coreFrontTheme') . '.default';
         }
         if (strpos($dbDataPattern, '.') === false) {
             throw new BcException(__d('baser_core', 'データパターンの形式が不正です。'));
@@ -334,12 +348,12 @@ class InstallationsService implements InstallationsServiceInterface
     public function executeDefaultUpdates(): bool
     {
         $result = true;
-        if (!$this->_updatePluginStatus()) {
-            $this->log(__d('baser_core', 'プラグインの有効化に失敗しました。'));
-            $result = false;
-        }
         if (!$this->_updateContents()) {
             $this->log(__d('baser_core', 'コンテンツの更新に失敗しました。'));
+            $result = false;
+        }
+        if (!$this->_updateBlogPosts()) {
+            $this->log(__d('baser_core', 'ブログ記事の更新に失敗しました。'));
             $result = false;
         }
         /** @var SearchIndexesServiceInterface $searchIndexesService */
@@ -370,33 +384,22 @@ class InstallationsService implements InstallationsServiceInterface
     }
 
     /**
-     * プラグインのステータスを更新する
+     * コンテンツの作成日を更新する
      *
-     * @return boolean
+     * @return bool
      * @checked
      * @noTodo
      */
-    protected function _updatePluginStatus(): bool
+    protected function _updateBlogPosts(): bool
     {
-        $this->BcDatabase->truncate('plugins');
-        $version = BcUtil::getVersion();
-        $pluginsTable = TableRegistry::getTableLocator()->get('BaserCore.Plugins');
-        $priority = intval($pluginsTable->getMax('priority')) + 1;
-        $corePlugins = Configure::read('BcApp.defaultInstallCorePlugins');
+        $table = TableRegistry::getTableLocator()->get('BcBlog.BlogPosts');
+        $entities = $table->find()->all();
         $result = true;
-        foreach($corePlugins as $corePlugin) {
-            $plugin = $pluginsTable->getPluginConfig($corePlugin);
-            $plugin = $pluginsTable->patchEntity($plugin, [
-                'name' => $corePlugin,
-                'version' => $version,
-                'status' => true,
-                'db_inited' => false,
-                'priority' => $priority
-            ]);
-            if (!$pluginsTable->save($plugin)) {
+        foreach($entities as $entity) {
+            $entity->posted = new FrozenTime();
+            if (!$table->save($entity)) {
                 $result = false;
             }
-            $priority++;
         }
         return $result;
     }
@@ -593,7 +596,7 @@ class InstallationsService implements InstallationsServiceInterface
             $Folder = new Folder();
             $Folder->create($path, 0777);
         }
-        $pluginPath = BcUtil::getPluginPath(Configure::read('BcApp.defaultAdminTheme')) . DS;
+        $pluginPath = BcUtil::getPluginPath(Configure::read('BcApp.coreAdminTheme')) . DS;
         $src = $pluginPath . DS . 'webroot' . DS . 'img' . DS . 'admin' . DS . 'ckeditor' . DS;
         $Folder = new Folder($src);
         $files = $Folder->read(true, true);
@@ -653,13 +656,11 @@ class InstallationsService implements InstallationsServiceInterface
     public function getAllDefaultDataPatterns(): array
     {
         $themesService = $this->getService(ThemesServiceInterface::class);
-        // コア
-        $patterns = $themesService->getDefaultDataPatterns();
-        // 外部テーマ
         $paths = [
             BASER_THEMES,
             ROOT . DS . 'vendor' . DS . 'baserproject' . DS
         ];
+        $patterns = [];
         foreacH($paths as $path) {
             $Folder = new Folder($path);
             $files = $Folder->read(true, true, true);

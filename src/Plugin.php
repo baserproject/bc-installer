@@ -26,7 +26,7 @@ use Cake\Routing\Route\InflectedRoute;
 /**
  * Class Plugin
  */
-class BcInstallerPlugin extends BcPlugin
+class Plugin extends BcPlugin
 {
 
     /**

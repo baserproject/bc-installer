@@ -26,6 +26,7 @@ use BaserCore\Service\SitesServiceInterface;
 use BaserCore\Service\ThemesServiceInterface;
 use BaserCore\Service\UsersServiceInterface;
 use BaserCore\Utility\BcContainerTrait;
+use BaserCore\Utility\BcFolder;
 use BaserCore\Utility\BcUtil;
 use BcSearchIndex\Service\SearchIndexesServiceInterface;
 use Cake\Core\Configure;
@@ -491,11 +492,11 @@ class InstallationsService implements InstallationsServiceInterface
     {
         $dirs = ['blog', 'editor', 'theme_configs'];
         $path = WWW_ROOT . 'files' . DS;
-        $Folder = new Folder();
         $result = true;
         foreach($dirs as $dir) {
             if (!is_dir($path . $dir)) {
-                if (!$Folder->create($path . $dir, 0777)) {
+                $Folder = new BcFolder($path . $dir);
+                if (!$Folder->create()) {
                     $result = false;
                 }
             }
@@ -534,16 +535,15 @@ class InstallationsService implements InstallationsServiceInterface
     {
         $path = WWW_ROOT . 'files' . DS . 'editor' . DS;
         if (!is_dir($path)) {
-            $Folder = new Folder();
-            $Folder->create($path, 0777);
+            (new BcFolder($path))->create();
         }
         $pluginPath = BcUtil::getPluginPath(Configure::read('BcApp.coreAdminTheme')) . DS;
         $src = $pluginPath . DS . 'webroot' . DS . 'img' . DS . 'admin' . DS . 'ckeditor' . DS;
-        $Folder = new Folder($src);
-        $files = $Folder->read(true, true);
+        $Folder = new BcFolder($src);
+        $files = $Folder->getFiles();
         $result = true;
-        if (!empty($files[1])) {
-            foreach($files[1] as $file) {
+        if (!empty($files)) {
+            foreach($files as $file) {
                 if (copy($src . $file, $path . $file)) {
                     @chmod($path . $file, 0666);
                 } else {
@@ -565,7 +565,6 @@ class InstallationsService implements InstallationsServiceInterface
     {
         /* DBソース取得 */
         $dbsource = [];
-        $folder = new Folder();
         $pdoDrivers = PDO::getAvailableDrivers();
         /* MySQL利用可否 */
         if (in_array('mysql', $pdoDrivers)) {
@@ -578,7 +577,7 @@ class InstallationsService implements InstallationsServiceInterface
         /* SQLite利用可否チェック */
         if (in_array('sqlite', $pdoDrivers) && extension_loaded('sqlite3') && class_exists('SQLite3')) {
             $dbFolderPath = ROOT . DS . 'db' . DS . 'sqlite';
-            if (is_writable(dirname($dbFolderPath)) && $folder->create($dbFolderPath, 0777)) {
+            if (is_writable(dirname($dbFolderPath)) && (new BcFolder($dbFolderPath))->create()) {
                 $info = SQLite3::version();
                 if (version_compare($info['versionString'], Configure::read('BcRequire.winSQLiteVersion'), '>')) {
                     $dbsource['sqlite'] = 'SQLite';
@@ -604,9 +603,9 @@ class InstallationsService implements InstallationsServiceInterface
         ];
         $patterns = [];
         foreacH($paths as $path) {
-            $Folder = new Folder($path);
-            $files = $Folder->read(true, true, true);
-            foreach($files[0] as $dir) {
+            $Folder = new BcFolder($path);
+            $files = $Folder->getFolders(['full'=>true]);
+            foreach($files as $dir) {
                 $theme = basename($dir);
                 $configPath = $dir . DS . 'config.php';
 

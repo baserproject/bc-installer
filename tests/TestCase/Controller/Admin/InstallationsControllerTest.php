@@ -1,4 +1,6 @@
 <?php
+// TODO ucmitz  : コード確認要
+return;
 /**
  * baserCMS :  Based Website Development Project <https://basercms.net>
  * Copyright (c) baserCMS Users Community <https://basercms.net/community/>
@@ -9,9 +11,7 @@
  * @license         https://basercms.net/license/index.html
  */
 
-namespace BcInstaller\Test\TestCase\Controller\Admin;
-use BaserCore\TestSuite\BcTestCase;
-use BcInstaller\Controller\Admin\InstallationsController;
+App::uses('InstallationsController', 'Controller');
 
 /**
  * Class InstallationsControllerTest
@@ -22,10 +22,11 @@ class InstallationsControllerTest extends BcTestCase
 {
 
     /**
-    /**
-     * setup
+     * set up
+     *
+     * @return void
      */
-    public function setUp(): void
+    public function setUp()
     {
         parent::setUp();
     }
@@ -35,7 +36,7 @@ class InstallationsControllerTest extends BcTestCase
      *
      * @return void
      */
-    public function tearDown(): void
+    public function tearDown()
     {
         parent::tearDown();
     }

@@ -186,6 +186,7 @@ class InstallCommand extends Command
         $service->buildPermissions();
         $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
         $siteConfigsService->putEnv('SITE_URL', $siteUrl);
+        $siteConfigsService->putEnv('SSL_URL', $siteUrl);
         if ($dbConfig['datasource'] === 'postgres') {
             $service->BcDatabase->updateSequence();
         }

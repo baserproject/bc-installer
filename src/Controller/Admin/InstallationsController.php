@@ -161,12 +161,6 @@ class InstallationsController extends BcAdminAppController
                 try {
                     $db = $service->connectDb($this->getRequest());
                     $db->begin();
-                    $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
-                    if ($this->request->getData('allow_simple_password')) {
-                        $siteConfigsService->setValue('allow_simple_password', 1);
-                    } else {
-                        $siteConfigsService->setValue('allow_simple_password', 0);
-                    }
                     $service->initAdmin($this->getRequest());
                     $service->sendCompleteMail($this->getRequest()->getData());
                     $db->commit();
@@ -210,6 +204,9 @@ class InstallationsController extends BcAdminAppController
             /** @var SiteConfigsServiceInterface $siteConfigsService */
             $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
             $siteConfigsService->putEnv('INSTALL_MODE', 'false');
+            if(!$this->getRequest()->is('ssl')) {
+                $siteConfigsService->putEnv('ADMIN_SSL', 'false');
+            }
 
             BcUtil::clearAllCache();
             if (function_exists('opcache_reset')) opcache_reset();

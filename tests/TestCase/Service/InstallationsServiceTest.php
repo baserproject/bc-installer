@@ -13,8 +13,6 @@ namespace BcInstaller\Test\TestCase\Service;
 
 use BaserCore\TestSuite\BcTestCase;
 use BaserCore\Utility\BcContainerTrait;
-use BaserCore\Utility\BcFile;
-use BaserCore\Utility\BcFolder;
 use BcInstaller\Service\InstallationsService;
 use BcInstaller\Service\InstallationsServiceInterface;
 
@@ -151,9 +149,9 @@ class InstallationsServiceTest extends BcTestCase
         // プラグイン有効化チェック用準備(ダミーのプラグインディレクトリを作成)
         $testPluginPath = BASER_PLUGINS . 'Test' . DS;
         $testPluginConfigPath = $testPluginPath . 'config.php';
-        $Folder = new BcFolder($testPluginPath);
-        $Folder->create();
-        $File = new BcFile($testPluginConfigPath);
+        $Folder = new Folder();
+        $Folder->create($testPluginPath);
+        $File = new File($testPluginConfigPath, true);
         $File->write('<?php $title = "テスト";');
 
         Configure::write('BcApp.corePlugins', ['BcBlog', 'BcFeed', 'BcMail', 'Test']);
@@ -224,7 +222,7 @@ class InstallationsServiceTest extends BcTestCase
             ];
             $this->BcManager->createDatabaseConfig($options);
 
-            $File = new BcFile($configPath . 'database.php');
+            $File = new File($configPath . 'database.php');
             $result = $File->read();
 
             // 生成されたファイルを削除し、バックアップしたファイルに置き換える
@@ -253,7 +251,7 @@ class InstallationsServiceTest extends BcTestCase
 
             $this->BcManager->createInstallFile('hogeSalt', 'hogeSeed', 'hogeUrl');
 
-            $File = new BcFile($configPath . 'install.php');
+            $File = new File($configPath . 'install.php');
             $result = $File->read();
 
             // 生成されたファイルを削除し、バックアップしたファイルに置き換える
@@ -279,9 +277,9 @@ class InstallationsServiceTest extends BcTestCase
     {
         $this->markTestIncomplete('このテストは未実装です。BcManagerComponentから移植中です。');
         // editor フォルダを削除
+        $Folder = new Folder();
         $targetPath = WWW_ROOT . 'files' . DS . 'editor' . DS;
-        $Folder = new \BaserCore\Utility\BcFolder($targetPath);
-        $Folder->delete();
+        $Folder->delete($targetPath);
 
         $this->BcManager->deployEditorTemplateImage();
 
@@ -311,11 +309,12 @@ class InstallationsServiceTest extends BcTestCase
     {
         $this->markTestIncomplete('このテストは未実装です。BcManagerComponentから移植中です。');
         // 各フォルダを削除
+        $Folder = new Folder();
         $path = WWW_ROOT . 'files' . DS;
         $dirs = ['blog', 'editor', 'theme_configs'];
 
         foreach($dirs as $dir) {
-            (new BcFolder($path . $dir))->delete($path . $dir);
+            $Folder->delete($path . $dir);
         }
 
         $this->BcManager->createDefaultFiles();

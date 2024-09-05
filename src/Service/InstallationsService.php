@@ -81,6 +81,7 @@ class InstallationsService implements InstallationsServiceInterface
      * @return array
      * @checked
      * @noTodo
+     * @unitTest
      */
     public function checkEnv(): array
     {
@@ -230,6 +231,7 @@ class InstallationsService implements InstallationsServiceInterface
      * @return string
      * @checked
      * @noTodo
+     * @unitTest
      */
     public function getRealDbName(string $type, string $name)
     {
@@ -288,6 +290,7 @@ class InstallationsService implements InstallationsServiceInterface
      * @return string キー
      * @checked
      * @noTodo
+     * @unitTest
      */
     public function setSecuritySalt($length = 40): string
     {
@@ -510,6 +513,7 @@ class InstallationsService implements InstallationsServiceInterface
      * @return bool
      * @noTodo
      * @checked
+     * @unitTest
      */
     public function createJwt()
     {
@@ -530,6 +534,7 @@ class InstallationsService implements InstallationsServiceInterface
      * @return boolean
      * @checked
      * @noTodo
+     * @unitTest
      */
     public function deployEditorTemplateImage(): bool
     {

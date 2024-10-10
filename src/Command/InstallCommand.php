@@ -203,25 +203,18 @@ class InstallCommand extends Command
      */
     protected function getDbParams(Arguments $args)
     {
-        $dbConfig = [
+        $dbConfig = array_merge([
             'datasource' => '',
             'host' => '',
             'database' => $args->getArgument('database'),
-            'username' => '',
+            'login' => '',
             'password' => '',
             'prefix' => '',
             'port' => '',
             'persistent' => false,
             'schema' => '',
             'encoding' => ''
-        ];
-
-        // 必要なキーだけマージ
-        foreach($dbConfig as $key => $value) {
-            if ($args->hasOption($key)) {
-                $dbConfig[$key] = $args->getOption($key);
-            }
-        }
+        ], $args->getOptions());
 
         $drivers = ['mysql', 'postgres', 'sqlite'];
         if (!in_array($dbConfig['datasource'], $drivers)) return false;

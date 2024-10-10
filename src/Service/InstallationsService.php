@@ -155,8 +155,6 @@ class InstallationsService implements InstallationsServiceInterface
 	/**
 	 * memory_limit を取得する
 	 * @return int
-     * @checked
-     * @noTodo
 	 */
 	protected function _getMemoryLimit ()
 	{
@@ -441,7 +439,6 @@ class InstallationsService implements InstallationsServiceInterface
      * @param string $dbDataPattern
      * @return boolean
      * @checked
-     * @noTodo
      */
     public function installPlugin($name)
     {
@@ -450,6 +447,27 @@ class InstallationsService implements InstallationsServiceInterface
         $plugin = Plugin::isLoaded($name);
         if(!$plugin) $plugin = Plugin::getCollection()->create($name);
         return $plugin->install();
+    }
+
+    /**
+     * プラグインを初期化
+     *
+     * @param $_path
+     */
+    public function initPlugin($_path, $dbDataPattern = '')
+    {
+        if ($dbDataPattern) {
+            $_SESSION['dbDataPattern'] = $dbDataPattern;
+        }
+        ClassRegistry::flush();
+        if (file_exists($_path)) {
+            try {
+                set_time_limit(0);
+                include $_path;
+            } catch (Exception $e) {
+                $this->log($e->getMessage());
+            }
+        }
     }
 
     /**
@@ -602,7 +620,6 @@ class InstallationsService implements InstallationsServiceInterface
      *
      * @return array
      * @checked
-     * @noTodo
      */
     protected function _getDbSource(): array
     {
@@ -681,8 +698,6 @@ class InstallationsService implements InstallationsServiceInterface
 
     /**
      * アクセスルールを構築する
-     * @checked
-     * @noTodo
      */
     public function buildPermissions()
     {

@@ -49,8 +49,7 @@ class InstallationsController extends BcAdminAppController
      */
     public function beforeFilter(EventInterface $event)
     {
-        $response = parent::beforeFilter($event);
-        if($response) return $response;
+        parent::beforeFilter($event);
         set_time_limit(300);
     }
 

@@ -34,7 +34,6 @@ class BcInstallerPlugin extends BcPlugin
      * @param ContainerInterface $container
      * @noTodo
      * @checked
-     * @unitTest
      */
     public function services(ContainerInterface $container): void
     {
@@ -68,7 +67,6 @@ class BcInstallerPlugin extends BcPlugin
      * @return CommandCollection
      * @checked
      * @noTodo
-     * @unitTest
      */
     public function console(CommandCollection $commands): CommandCollection
     {

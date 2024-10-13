@@ -27,6 +27,7 @@ use Cake\Utility\Hash;
 use BaserCore\Annotation\UnitTest;
 use BaserCore\Annotation\NoTodo;
 use BaserCore\Annotation\Checked;
+use Psr\Http\Message\ResponseInterface;
 
 /**
  * Class InstallationsController
@@ -46,10 +47,12 @@ class InstallationsController extends BcAdminAppController
      *
      * @return void
      * @checked
+     * @noTodo
      */
     public function beforeFilter(EventInterface $event)
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if($response) return $response;
         set_time_limit(300);
     }
 
@@ -137,8 +140,9 @@ class InstallationsController extends BcAdminAppController
      * Step 4: データベース生成／管理者ユーザー作成
      *
      * @param InstallationsAdminService $service
-     * @return void
+     * @return void|ResponseInterface
      * @checked
+     * @noTodo
      */
     public function step4(InstallationsAdminServiceInterface $service)
     {
@@ -157,6 +161,12 @@ class InstallationsController extends BcAdminAppController
                 try {
                     $db = $service->connectDb($this->getRequest());
                     $db->begin();
+                    $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
+                    if ($this->request->getData('allow_simple_password')) {
+                        $siteConfigsService->setValue('allow_simple_password', 1);
+                    } else {
+                        $siteConfigsService->setValue('allow_simple_password', 0);
+                    }
                     $service->initAdmin($this->getRequest());
                     $service->sendCompleteMail($this->getRequest()->getData());
                     $db->commit();
@@ -200,9 +210,6 @@ class InstallationsController extends BcAdminAppController
             /** @var SiteConfigsServiceInterface $siteConfigsService */
             $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
             $siteConfigsService->putEnv('INSTALL_MODE', 'false');
-            if(!$this->getRequest()->is('ssl')) {
-                $siteConfigsService->putEnv('ADMIN_SSL', 'false');
-            }
 
             BcUtil::clearAllCache();
             if (function_exists('opcache_reset')) opcache_reset();

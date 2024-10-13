@@ -134,6 +134,7 @@ class InstallationsAdminService extends InstallationsService implements Installa
      * @param array $data
      * @return void
      * @checked
+     * @noTodo
      */
     public function writeDbSettingToSession(ServerRequest $request, array $data): void
     {
@@ -330,6 +331,7 @@ class InstallationsAdminService extends InstallationsService implements Installa
      *
      * @param ServerRequest $request
      * @checked
+     * @noTodo
      */
     public function initDb(ServerRequest $request): void
     {
@@ -342,7 +344,6 @@ class InstallationsAdminService extends InstallationsService implements Installa
         // SITE_URL更新
         $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
         $siteConfigsService->putEnv('SITE_URL', BcUtil::siteUrl());
-        $siteConfigsService->putEnv('SSL_URL', BcUtil::siteUrl());
 
         // シーケンスを更新する
         $dbConfig = ConnectionManager::getConfig('default');

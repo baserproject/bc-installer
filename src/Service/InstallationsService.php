@@ -26,6 +26,7 @@ use BaserCore\Service\SitesServiceInterface;
 use BaserCore\Service\ThemesServiceInterface;
 use BaserCore\Service\UsersServiceInterface;
 use BaserCore\Utility\BcContainerTrait;
+use BaserCore\Utility\BcFolder;
 use BaserCore\Utility\BcUtil;
 use BcSearchIndex\Service\SearchIndexesServiceInterface;
 use Cake\Core\Configure;
@@ -55,6 +56,12 @@ class InstallationsService implements InstallationsServiceInterface
     use BcContainerTrait;
     use LogTrait;
     use MailerAwareTrait;
+
+    /**
+     * BcDatabase Service
+     * @var BcDatabaseServiceInterface|BcDatabaseService
+     */
+    public BcDatabaseServiceInterface|BcDatabaseService $BcDatabase;
 
     /**
      * Constructor
@@ -155,6 +162,8 @@ class InstallationsService implements InstallationsServiceInterface
 	/**
 	 * memory_limit を取得する
 	 * @return int
+     * @checked
+     * @noTodo
 	 */
 	protected function _getMemoryLimit ()
 	{
@@ -349,61 +358,10 @@ class InstallationsService implements InstallationsServiceInterface
      */
     public function executeDefaultUpdates(): bool
     {
-        $result = true;
-        if (!$this->_updateContents()) {
-            $this->log(__d('baser_core', 'コンテンツの更新に失敗しました。'));
-            $result = false;
-        }
-        if (!$this->_updateBlogPosts()) {
-            $this->log(__d('baser_core', 'ブログ記事の更新に失敗しました。'));
-            $result = false;
-        }
         /** @var SearchIndexesServiceInterface $searchIndexesService */
         $searchIndexesService = $this->getService(SearchIndexesServiceInterface::class);
         $searchIndexesService->reconstruct();
-        return $result;
-    }
-
-    /**
-     * コンテンツの作成日を更新する
-     *
-     * @return bool
-     * @checked
-     * @noTodo
-     */
-    protected function _updateContents(): bool
-    {
-        $contentsTable = TableRegistry::getTableLocator()->get('BaserCore.Contents');
-        $contents = $contentsTable->find()->all();
-        $result = true;
-        foreach($contents as $content) {
-            $content->created_date = new FrozenTime();
-            if (!$contentsTable->save($content)) {
-                $result = false;
-            }
-        }
-        return $result;
-    }
-
-    /**
-     * コンテンツの作成日を更新する
-     *
-     * @return bool
-     * @checked
-     * @noTodo
-     */
-    protected function _updateBlogPosts(): bool
-    {
-        $table = TableRegistry::getTableLocator()->get('BcBlog.BlogPosts');
-        $entities = $table->find()->all();
-        $result = true;
-        foreach($entities as $entity) {
-            $entity->posted = new FrozenTime();
-            if (!$table->save($entity)) {
-                $result = false;
-            }
-        }
-        return $result;
+        return true;
     }
 
     /**
@@ -439,6 +397,7 @@ class InstallationsService implements InstallationsServiceInterface
      * @param string $dbDataPattern
      * @return boolean
      * @checked
+     * @noTodo
      */
     public function installPlugin($name)
     {
@@ -447,27 +406,6 @@ class InstallationsService implements InstallationsServiceInterface
         $plugin = Plugin::isLoaded($name);
         if(!$plugin) $plugin = Plugin::getCollection()->create($name);
         return $plugin->install();
-    }
-
-    /**
-     * プラグインを初期化
-     *
-     * @param $_path
-     */
-    public function initPlugin($_path, $dbDataPattern = '')
-    {
-        if ($dbDataPattern) {
-            $_SESSION['dbDataPattern'] = $dbDataPattern;
-        }
-        ClassRegistry::flush();
-        if (file_exists($_path)) {
-            try {
-                set_time_limit(0);
-                include $_path;
-            } catch (Exception $e) {
-                $this->log($e->getMessage());
-            }
-        }
     }
 
     /**
@@ -519,6 +457,7 @@ class InstallationsService implements InstallationsServiceInterface
             if($key === 'datasource' || $key === 'dataPattern') continue;
             $installCoreData[] = '        \'' . $key . '\' => \'' . $value . '\',';
         }
+        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN)';
         $installCoreData[] = '    ],';
         $installCoreData[] = '    \'Datasources.test\' => [';
         foreach($dbConfig as $key => $value) {
@@ -532,6 +471,7 @@ class InstallationsService implements InstallationsServiceInterface
             if($key === 'datasource' || $key === 'dataPattern') continue;
             $installCoreData[] = '        \'' . $key . '\' => \'' . $value . '\',';
         }
+        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN)';
         $installCoreData[] = '    ]';
         $installCoreData[] = '];';
 
@@ -552,11 +492,11 @@ class InstallationsService implements InstallationsServiceInterface
     {
         $dirs = ['blog', 'editor', 'theme_configs'];
         $path = WWW_ROOT . 'files' . DS;
-        $Folder = new Folder();
         $result = true;
         foreach($dirs as $dir) {
             if (!is_dir($path . $dir)) {
-                if (!$Folder->create($path . $dir, 0777)) {
+                $Folder = new BcFolder($path . $dir);
+                if (!$Folder->create()) {
                     $result = false;
                 }
             }
@@ -595,16 +535,15 @@ class InstallationsService implements InstallationsServiceInterface
     {
         $path = WWW_ROOT . 'files' . DS . 'editor' . DS;
         if (!is_dir($path)) {
-            $Folder = new Folder();
-            $Folder->create($path, 0777);
+            (new BcFolder($path))->create();
         }
         $pluginPath = BcUtil::getPluginPath(Configure::read('BcApp.coreAdminTheme')) . DS;
         $src = $pluginPath . DS . 'webroot' . DS . 'img' . DS . 'admin' . DS . 'ckeditor' . DS;
-        $Folder = new Folder($src);
-        $files = $Folder->read(true, true);
+        $Folder = new BcFolder($src);
+        $files = $Folder->getFiles();
         $result = true;
-        if (!empty($files[1])) {
-            foreach($files[1] as $file) {
+        if (!empty($files)) {
+            foreach($files as $file) {
                 if (copy($src . $file, $path . $file)) {
                     @chmod($path . $file, 0666);
                 } else {
@@ -620,12 +559,12 @@ class InstallationsService implements InstallationsServiceInterface
      *
      * @return array
      * @checked
+     * @noTodo
      */
     protected function _getDbSource(): array
     {
         /* DBソース取得 */
         $dbsource = [];
-        $folder = new Folder();
         $pdoDrivers = PDO::getAvailableDrivers();
         /* MySQL利用可否 */
         if (in_array('mysql', $pdoDrivers)) {
@@ -638,7 +577,7 @@ class InstallationsService implements InstallationsServiceInterface
         /* SQLite利用可否チェック */
         if (in_array('sqlite', $pdoDrivers) && extension_loaded('sqlite3') && class_exists('SQLite3')) {
             $dbFolderPath = ROOT . DS . 'db' . DS . 'sqlite';
-            if (is_writable(dirname($dbFolderPath)) && $folder->create($dbFolderPath, 0777)) {
+            if (is_writable(dirname($dbFolderPath)) && (new BcFolder($dbFolderPath))->create()) {
                 $info = SQLite3::version();
                 if (version_compare($info['versionString'], Configure::read('BcRequire.winSQLiteVersion'), '>')) {
                     $dbsource['sqlite'] = 'SQLite';
@@ -664,9 +603,9 @@ class InstallationsService implements InstallationsServiceInterface
         ];
         $patterns = [];
         foreacH($paths as $path) {
-            $Folder = new Folder($path);
-            $files = $Folder->read(true, true, true);
-            foreach($files[0] as $dir) {
+            $Folder = new BcFolder($path);
+            $files = $Folder->getFolders(['full'=>true]);
+            foreach($files as $dir) {
                 $theme = basename($dir);
                 $configPath = $dir . DS . 'config.php';
 
@@ -698,6 +637,8 @@ class InstallationsService implements InstallationsServiceInterface
 
     /**
      * アクセスルールを構築する
+     * @checked
+     * @noTodo
      */
     public function buildPermissions()
     {

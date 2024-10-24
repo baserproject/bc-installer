@@ -30,7 +30,7 @@ class BcInstallerServiceProvider extends ServiceProvider
      * Provides
      * @var string[]
      */
-    protected array $provides = [
+    protected $provides = [
         InstallationsServiceInterface::class,
         InstallationsAdminServiceInterface::class
     ];
@@ -40,7 +40,6 @@ class BcInstallerServiceProvider extends ServiceProvider
      * @param \Cake\Core\ContainerInterface $container
      * @checked
      * @noTodo
-     * @unitTest
      */
     public function services($container): void
     {

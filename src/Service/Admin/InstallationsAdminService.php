@@ -17,7 +17,6 @@ use BaserCore\Annotation\UnitTest;
 use BaserCore\Service\SiteConfigsServiceInterface;
 use BaserCore\Service\UsersService;
 use BaserCore\Service\UsersServiceInterface;
-use BaserCore\Utility\BcApiUtil;
 use BaserCore\Utility\BcContainerTrait;
 use BaserCore\Utility\BcUtil;
 use BcInstaller\Service\InstallationsService;
@@ -255,6 +254,10 @@ class InstallationsAdminService extends InstallationsService implements Installa
         $this->setAdminEmailAndVersion($request->getData('admin_email'));
         $this->setSiteName($request->getData('site_name'));
 
+        // SecuritySalt設定
+        $salt = $this->setSecuritySalt();
+        $request->getSession()->write('Installation.salt', $salt);
+
         // 管理ユーザー登録
         $user = [
             'password_1' => $request->getData('admin_password'),
@@ -280,9 +283,10 @@ class InstallationsAdminService extends InstallationsService implements Installa
     public function initFiles(ServerRequest $request): void
     {
         // インストールファイルを生成する
-        $this->createInstallFile($this->readDbSetting($request));
+        $securitySalt = $request->getSession()->read('Installation.salt');
+        $this->createInstallFile($this->readDbSetting($request), $securitySalt);
         // JWTキーを作成する
-        BcApiUtil::createJwt();
+        $this->createJwt();
         // アップロード用初期フォルダを作成する
         $this->createDefaultFiles();
         // エディタテンプレート用の画像を配置
@@ -316,6 +320,7 @@ class InstallationsAdminService extends InstallationsService implements Installa
     {
         // ログインするとセッションが初期化されてしまうので一旦取得しておく
         $installationSetting = $request->getSession()->read('Installation');
+        Configure::write('Security.salt', $installationSetting['salt']);
         /* @var UsersService $usersService */
         $usersService = $this->getService(UsersServiceInterface::class);
         $usersService->login($request, $response, $installationSetting['id']);
@@ -339,6 +344,7 @@ class InstallationsAdminService extends InstallationsService implements Installa
         // SITE_URL更新
         $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
         $siteConfigsService->putEnv('SITE_URL', BcUtil::siteUrl());
+        $siteConfigsService->putEnv('SSL_URL', BcUtil::siteUrl());
 
         // シーケンスを更新する
         $dbConfig = ConnectionManager::getConfig('default');

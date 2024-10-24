@@ -26,7 +26,6 @@ use BaserCore\Service\SitesServiceInterface;
 use BaserCore\Service\ThemesServiceInterface;
 use BaserCore\Service\UsersServiceInterface;
 use BaserCore\Utility\BcContainerTrait;
-use BaserCore\Utility\BcFolder;
 use BaserCore\Utility\BcUtil;
 use BcSearchIndex\Service\SearchIndexesServiceInterface;
 use Cake\Core\Configure;
@@ -81,7 +80,6 @@ class InstallationsService implements InstallationsServiceInterface
      * @return array
      * @checked
      * @noTodo
-     * @unitTest
      */
     public function checkEnv(): array
     {
@@ -231,7 +229,6 @@ class InstallationsService implements InstallationsServiceInterface
      * @return string
      * @checked
      * @noTodo
-     * @unitTest
      */
     public function getRealDbName(string $type, string $name)
     {
@@ -284,6 +281,25 @@ class InstallationsService implements InstallationsServiceInterface
     }
 
     /**
+     * セキュリティ用のキーを生成する
+     *
+     * @param int $length
+     * @return string キー
+     * @checked
+     * @noTodo
+     */
+    public function setSecuritySalt($length = 40): string
+    {
+        $keyset = "abcdefghijklmABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        $randkey = "";
+        for($i = 0; $i < $length; $i++) {
+            $randkey .= substr($keyset, rand(0, strlen($keyset) - 1), 1);
+        }
+        Configure::write('Security.salt', $randkey);
+        return $randkey;
+    }
+
+    /**
      * 初期ユーザーを登録する
      *
      * @param array $user
@@ -292,8 +308,11 @@ class InstallationsService implements InstallationsServiceInterface
      * @checked
      * @noTodo
      */
-    public function addDefaultUser(array $user)
+    public function addDefaultUser(array $user, $securitySalt = '')
     {
+        if ($securitySalt) {
+            Configure::write('Security.salt', $securitySalt);
+        }
         $user = array_merge([
             'name' => '',
             'real_name_1' => preg_replace('/@.+$/', '', $user['email']),
@@ -392,11 +411,12 @@ class InstallationsService implements InstallationsServiceInterface
      * インストール設定ファイルを生成する
      *
      * @param array $dbConfig
+     * @param string $securitySalt
      * @return boolean
      * @checked
      * @noTodo
      */
-    public function createInstallFile(array $dbConfig): bool
+    public function createInstallFile(array $dbConfig, string $securitySalt): bool
     {
 		if (!is_writable(ROOT . DS . 'config' . DS)) {
 			return false;
@@ -419,11 +439,18 @@ class InstallationsService implements InstallationsServiceInterface
             $dbConfig[$key] = addcslashes($value, '\'\\');
         }
 
+        $basicSettings = [
+            'Security.salt' => $securitySalt
+        ];
+
         $installCoreData = [
             '<?php',
             '// created by BcInstaller',
             'return ['
         ];
+        foreach($basicSettings as $key => $value) {
+            $installCoreData[] = '    \'' . $key . '\' => \'' . $value . '\',';
+        }
         $installCoreData[] = '    \'Datasources.default\' => [';
         foreach($dbConfig as $key => $value) {
             if($key === 'datasource' || $key === 'dataPattern') continue;
@@ -464,11 +491,11 @@ class InstallationsService implements InstallationsServiceInterface
     {
         $dirs = ['blog', 'editor', 'theme_configs'];
         $path = WWW_ROOT . 'files' . DS;
+        $Folder = new Folder();
         $result = true;
         foreach($dirs as $dir) {
             if (!is_dir($path . $dir)) {
-                $Folder = new BcFolder($path . $dir);
-                if (!$Folder->create()) {
+                if (!$Folder->create($path . $dir, 0777)) {
                     $result = false;
                 }
             }
@@ -477,26 +504,46 @@ class InstallationsService implements InstallationsServiceInterface
     }
 
     /**
+     * JWTキーを作成する
+     *
+     * @return bool
+     * @noTodo
+     * @checked
+     */
+    public function createJwt()
+    {
+        $command = "openssl genrsa -out " . CONFIG . "jwt.key 1024";
+        exec($command, $out, $code);
+        if($code === 0) {
+            $command = "openssl rsa -in " . CONFIG . "jwt.key -outform PEM -pubout -out " . CONFIG . "jwt.pem";
+            exec($command, $out, $code);
+            return ($code === 0);
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * エディタテンプレート用のアイコン画像をデプロイ
      *
      * @return boolean
      * @checked
      * @noTodo
-     * @unitTest
      */
     public function deployEditorTemplateImage(): bool
     {
         $path = WWW_ROOT . 'files' . DS . 'editor' . DS;
         if (!is_dir($path)) {
-            (new BcFolder($path))->create();
+            $Folder = new Folder();
+            $Folder->create($path, 0777);
         }
         $pluginPath = BcUtil::getPluginPath(Configure::read('BcApp.coreAdminTheme')) . DS;
         $src = $pluginPath . DS . 'webroot' . DS . 'img' . DS . 'admin' . DS . 'ckeditor' . DS;
-        $Folder = new BcFolder($src);
-        $files = $Folder->getFiles();
+        $Folder = new Folder($src);
+        $files = $Folder->read(true, true);
         $result = true;
-        if (!empty($files)) {
-            foreach($files as $file) {
+        if (!empty($files[1])) {
+            foreach($files[1] as $file) {
                 if (copy($src . $file, $path . $file)) {
                     @chmod($path . $file, 0666);
                 } else {
@@ -518,6 +565,7 @@ class InstallationsService implements InstallationsServiceInterface
     {
         /* DBソース取得 */
         $dbsource = [];
+        $folder = new Folder();
         $pdoDrivers = PDO::getAvailableDrivers();
         /* MySQL利用可否 */
         if (in_array('mysql', $pdoDrivers)) {
@@ -530,7 +578,7 @@ class InstallationsService implements InstallationsServiceInterface
         /* SQLite利用可否チェック */
         if (in_array('sqlite', $pdoDrivers) && extension_loaded('sqlite3') && class_exists('SQLite3')) {
             $dbFolderPath = ROOT . DS . 'db' . DS . 'sqlite';
-            if (is_writable(dirname($dbFolderPath)) && (new BcFolder($dbFolderPath))->create()) {
+            if (is_writable(dirname($dbFolderPath)) && $folder->create($dbFolderPath, 0777)) {
                 $info = SQLite3::version();
                 if (version_compare($info['versionString'], Configure::read('BcRequire.winSQLiteVersion'), '>')) {
                     $dbsource['sqlite'] = 'SQLite';
@@ -556,9 +604,9 @@ class InstallationsService implements InstallationsServiceInterface
         ];
         $patterns = [];
         foreacH($paths as $path) {
-            $Folder = new BcFolder($path);
-            $files = $Folder->getFolders(['full'=>true]);
-            foreach($files as $dir) {
+            $Folder = new Folder($path);
+            $files = $Folder->read(true, true, true);
+            foreach($files[0] as $dir) {
                 $theme = basename($dir);
                 $configPath = $dir . DS . 'config.php';
 

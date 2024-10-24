@@ -11,6 +11,7 @@
 
 namespace BcInstaller\Controller\Admin;
 
+use BaserCore\BcPlugin;
 use BaserCore\Controller\Admin\BcAdminAppController;
 use BaserCore\Error\BcException;
 use BaserCore\Service\SiteConfigsServiceInterface;
@@ -84,6 +85,10 @@ class InstallationsController extends BcAdminAppController
             return $this->redirect(['action' => 'step3']);
         }
         $this->set($service->getViewVarsForStep2());
+        // .envファイルが無ければ生成する
+        if(!file_exists(CONFIG . '.env')) {
+            copy(CONFIG . '.env.example', CONFIG . '.env');
+        }
     }
 
     /**
@@ -161,6 +166,12 @@ class InstallationsController extends BcAdminAppController
                 try {
                     $db = $service->connectDb($this->getRequest());
                     $db->begin();
+                    $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
+                    if ($this->request->getData('allow_simple_password')) {
+                        $siteConfigsService->setValue('allow_simple_password', 1);
+                    } else {
+                        $siteConfigsService->setValue('allow_simple_password', 0);
+                    }
                     $service->initAdmin($this->getRequest());
                     $service->sendCompleteMail($this->getRequest()->getData());
                     $db->commit();
@@ -204,11 +215,10 @@ class InstallationsController extends BcAdminAppController
             /** @var SiteConfigsServiceInterface $siteConfigsService */
             $siteConfigsService = $this->getService(SiteConfigsServiceInterface::class);
             $siteConfigsService->putEnv('INSTALL_MODE', 'false');
-            if(!$this->getRequest()->is('ssl')) {
-                $siteConfigsService->putEnv('ADMIN_SSL', 'false');
-            }
+            $siteConfigsService->putEnv('DEBUG', 'false');
 
             BcUtil::clearAllCache();
+            (new BcPlugin())->createAssetsSymlink();
             if (function_exists('opcache_reset')) opcache_reset();
         }
     }

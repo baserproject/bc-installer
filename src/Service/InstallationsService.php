@@ -446,9 +446,7 @@ class InstallationsService implements InstallationsServiceInterface
             if($key === 'datasource' || $key === 'dataPattern') continue;
             $installCoreData[] = '        \'' . $key . '\' => \'' . $value . '\',';
         }
-        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN),';
-        // スキーマメタデータをキャッシュする（未指定だとテーブルごとに毎リクエスト DESCRIBE 相当のクエリが走る）
-        $installCoreData[] = '        \'cacheMetadata\' => true';
+        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN)';
         $installCoreData[] = '    ],';
         $installCoreData[] = '    \'Datasources.test\' => [';
         foreach($dbConfig as $key => $value) {
@@ -462,8 +460,7 @@ class InstallationsService implements InstallationsServiceInterface
             if($key === 'datasource' || $key === 'dataPattern') continue;
             $installCoreData[] = '        \'' . $key . '\' => \'' . $value . '\',';
         }
-        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN),';
-        $installCoreData[] = '        \'cacheMetadata\' => true';
+        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN)';
         $installCoreData[] = '    ]';
         $installCoreData[] = '];';
 

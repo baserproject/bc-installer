@@ -236,15 +236,26 @@ class InstallationsService implements InstallationsServiceInterface
      */
     public function getRealDbName(string $type, string $name)
     {
-        if (preg_match('/^\//', $name)) {
+        if ($type !== 'sqlite' || $name === '') {
             return $name;
         }
-        if (!empty($type) && !empty($name)) {
-            if ($type == 'sqlite') {
-                return ROOT . DS . 'db' . DS . 'sqlite' . DS . $name . '.db';
+        $sqliteDir = ROOT . DS . 'db' . DS . 'sqlite';
+        $message = __d('baser_core', 'SQLite のデータベース名は半角英数字・アンダースコア・ハイフンのみで入力してください。');
+        if (preg_match('/^\//', $name)) {
+            // 絶対パスは SQLite の保存ディレクトリ直下のみ許可する。
+            // 任意のパスを受け付けると、インストール未完了の状態で webroot 等の任意の場所へ
+            // DB ファイルを書き出すことができてしまう
+            if (strpos($name, '..') !== false
+                || dirname($name) !== $sqliteDir
+                || !preg_match('/^[A-Za-z0-9_-]+(\.db)?$/', basename($name))) {
+                throw new BcException($message);
             }
+            return $name;
         }
-        return $name;
+        if (!preg_match('/^[A-Za-z0-9_-]+$/', $name)) {
+            throw new BcException($message);
+        }
+        return $sqliteDir . DS . $name . '.db';
     }
 
     /**
@@ -435,7 +446,9 @@ class InstallationsService implements InstallationsServiceInterface
             if($key === 'datasource' || $key === 'dataPattern') continue;
             $installCoreData[] = '        \'' . $key . '\' => \'' . $value . '\',';
         }
-        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN)';
+        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN),';
+        // スキーマメタデータをキャッシュする（未指定だとテーブルごとに毎リクエスト DESCRIBE 相当のクエリが走る）
+        $installCoreData[] = '        \'cacheMetadata\' => true';
         $installCoreData[] = '    ],';
         $installCoreData[] = '    \'Datasources.test\' => [';
         foreach($dbConfig as $key => $value) {
@@ -449,7 +462,8 @@ class InstallationsService implements InstallationsServiceInterface
             if($key === 'datasource' || $key === 'dataPattern') continue;
             $installCoreData[] = '        \'' . $key . '\' => \'' . $value . '\',';
         }
-        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN)';
+        $installCoreData[] = '        \'log\' => filter_var(env(\'SQL_LOG\', false), FILTER_VALIDATE_BOOLEAN),';
+        $installCoreData[] = '        \'cacheMetadata\' => true';
         $installCoreData[] = '    ]';
         $installCoreData[] = '];';
 

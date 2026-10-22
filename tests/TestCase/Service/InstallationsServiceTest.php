@@ -11,6 +11,7 @@
 
 namespace BcInstaller\Test\TestCase\Service;
 
+use BaserCore\Error\BcException;
 use BaserCore\Service\PermissionGroupsServiceInterface;
 use BaserCore\Test\Factory\ContentFactory;
 use BaserCore\Test\Factory\ContentFolderFactory;
@@ -167,6 +168,30 @@ class InstallationsServiceTest extends BcTestCase
             ['mysql', 'mydatabase', 'mydatabase'],
             ['sqlite', '', ''],
             ['', 'mydatabase', 'mydatabase'],
+            ['sqlite', $path . 'mydatabase.db', $path . 'mydatabase.db'],
+        ];
+    }
+
+    /**
+     * test getRealDbName - SQLite の DB 名に任意のパスや記号を指定できないこと
+     * @param string $dbName
+     * @dataProvider getRealDbNameInvalidDataProvider
+     */
+    public function testGetRealDbNameInvalid($dbName)
+    {
+        $this->expectException(BcException::class);
+        $this->Installations->getRealDbName('sqlite', $dbName);
+    }
+
+    public static function getRealDbNameInvalidDataProvider()
+    {
+        return [
+            ['/var/www/html/webroot/shell.php'],
+            [ROOT . DS . 'db' . DS . 'sqlite' . DS . '..' . DS . 'shell.php'],
+            [ROOT . DS . 'db' . DS . 'sqlite' . DS . 'shell.php'],
+            ['../../webroot/shell'],
+            ['my database'],
+            ['name.php'],
         ];
     }
 
@@ -386,15 +411,19 @@ SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo for test failed: ')
             'database' => 'hogeDB'
         ];
 
-        $this->Installations->createInstallFile($dbConfig);
+        try {
+            $this->Installations->createInstallFile($dbConfig);
 
-        $file = new BcFile($configPath . 'install.php');
-        $result = $file->read();
-        $this->assertMatchesRegularExpression("/'username' => 'hogeName'.*'password' => 'hogePassword'.*'database' => 'hogeDB'/s", $result);
-
-        // 生成されたファイルを削除し、バックアップしたファイルに置き換える
-        $file->delete();
-        rename($configPath . 'install.php.copy', $configPath . 'install.php');
+            $file = new BcFile($configPath . 'install.php');
+            $result = $file->read();
+            $this->assertMatchesRegularExpression("/'username' => 'hogeName'.*'password' => 'hogePassword'.*'database' => 'hogeDB'/s", $result);
+            // スキーマメタデータのキャッシュが default / test の両方で有効になっていること
+            $this->assertSame(2, substr_count($result, "'cacheMetadata' => true"), 'install.php に cacheMetadata が出力されていません');
+        } finally {
+            // アサーションに失敗しても、生成されたファイルを削除しバックアップしたファイルに置き換える
+            unlink($configPath . 'install.php');
+            rename($configPath . 'install.php.copy', $configPath . 'install.php');
+        }
     }
 
     /**
